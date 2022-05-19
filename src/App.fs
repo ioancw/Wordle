@@ -42,6 +42,21 @@ let emptyWord =
       Letter5 = None, Black }
 
 let startNewGame =
+    let wordles =
+        [
+            "BRINE"
+            "CRIME"
+            "DUCKS"
+            "QUACK"
+            "NIGHT"
+            "PRIME"
+            "ARISE"
+            "BOZOS"
+            "DICKS"
+            "POTTY"
+            "LANDS"
+        ]
+
     { Wordle = "CRIME"
       Word1 = 1, emptyWord
       Word2 = 1, emptyWord
@@ -51,72 +66,74 @@ let startNewGame =
       Round = 1
       State = NotStarted }
 
-
-
-let getMask2 (actual: string) guess =
+let getMask2 (actual: string) (guess: string) =
     let removeFirstInstance remove fromList =
-        let rec removeFirst predicate = function
+        let rec removeFirst predicate =
+            function
             | [] -> []
             | h :: t when predicate h -> t //terminates
             | h :: t -> h :: removeFirst predicate t
+
         removeFirst (fun i -> i = remove) fromList
 
-    let getCounts letters matchOn = 
-        letters |> List.filter (fun i -> i = matchOn) |> List.length
-    
+    let getCounts letters matchOn =
+        letters
+        |> List.filter (fun i -> i = matchOn)
+        |> List.length
+
     let rec masker ls count mask =
         match (ls, count) with
         | [], _ -> mask
         | (a, g) :: t, cs ->
-            if a = g then 
+            if a = g then
                 masker t cs (Green :: mask)
-            else 
-                if Seq.contains g actual && getCounts cs g > 0 
-                then masker t (removeFirstInstance g cs) (Yellow :: mask)
-                else masker t cs (Grey :: mask)
-    
+            else if Seq.contains g actual && getCounts cs g > 0 then
+                masker t (removeFirstInstance g cs) (Yellow :: mask)
+            else
+                masker t cs (Grey :: mask)
+
     let notMatched zipped =
         zipped
         |> List.filter (fun (a, g) -> a <> g)
         |> List.map fst
 
-    let letters = Seq.zip actual guess |> Seq.toList     
-    let masked = masker letters (notMatched letters) [] |> List.rev 
-    let associated = Seq.zip actual masked |> Seq.toList
-    let associated' = associated |> List.map (fun (a, m) -> Some (string a), m)
-    {
-        Letter1 = associated'[0]
-        Letter2 = associated'[1]
-        Letter3 = associated'[2]
-        Letter4 = associated'[3]
-        Letter5 = associated'[4]
-    }
+    let letters = Seq.zip actual (guess.ToUpper()) |> Seq.toList
+    let masked = masker letters (notMatched letters) [] |> List.rev
+    let associated = Seq.zip guess masked |> Seq.toList
+
+    let associated' =
+        associated
+        |> List.map (fun (a, m) -> Some(string a), m)
+
+    { Letter1 = associated'.[0]
+      Letter2 = associated'.[1]
+      Letter3 = associated'.[2]
+      Letter4 = associated'.[3]
+      Letter5 = associated'.[4] }
 
 let getNewWordStateAdd newLetter (position, word) =
-    position + 1,
+    let advancedPosition = position + 1
     match position with
-    | 1 -> { word with Letter1 = newLetter }
-    | 2 -> { word with Letter2 = newLetter }
-    | 3 -> { word with Letter3 = newLetter }
-    | 4 -> { word with Letter4 = newLetter }
-    | 5 -> { word with Letter5 = newLetter }
-    | _ -> word
+    | 1 -> advancedPosition, { word with Letter1 = newLetter }
+    | 2 -> advancedPosition, { word with Letter2 = newLetter }
+    | 3 -> advancedPosition, { word with Letter3 = newLetter }
+    | 4 -> advancedPosition, { word with Letter4 = newLetter }
+    | 5 -> advancedPosition, { word with Letter5 = newLetter }
+    | _ -> position, word
 
 let getNewWordStateDelete (position, word) =
     let deletePosition = position - 1
     // when adding or deleting, the Status will always be Black, as it's yet to be evaluated
-    deletePosition,
     match deletePosition with
-    | 1 -> { word with Letter1 = None, Black }
-    | 2 -> { word with Letter2 = None, Black }
-    | 3 -> { word with Letter3 = None, Black }
-    | 4 -> { word with Letter4 = None, Black }
-    | 5 -> { word with Letter5 = None, Black }
-    | _ -> word
+    | 1 -> deletePosition, { word with Letter1 = None, Black }
+    | 2 -> deletePosition, { word with Letter2 = None, Black }
+    | 3 -> deletePosition, { word with Letter3 = None, Black }
+    | 4 -> deletePosition, { word with Letter4 = None, Black }
+    | 5 -> deletePosition, { word with Letter5 = None, Black }
+    | _ -> position, word
 
 let submitLetter input x =
     let addLetterToWord = getNewWordStateAdd (Some input, Black)
-
     match x.Round with
     | 1 -> { x with Word1 = addLetterToWord x.Word1 }
     | 2 -> { x with Word2 = addLetterToWord x.Word2 }
@@ -134,7 +151,7 @@ let submitDelete x =
     | 5 -> { x with Word5 = getNewWordStateDelete x.Word5 }
     | _ -> failwithf "There is no higher purpose"
 
-let getLetter (_, word) =
+let getWord (_, word) =
     let letter (word, _) = defaultArg word ""
 
     [| letter word.Letter1
@@ -148,54 +165,48 @@ let getLetter (_, word) =
 let submitEnter x =
     let guess =
         match x.Round with
-        | 1 -> x.Word1 |> getLetter |> getMask2 (x.Wordle)
-        | 2 -> x.Word2 |> getLetter |> getMask2 (x.Wordle)
-        | 3 -> x.Word3 |> getLetter |> getMask2 (x.Wordle)
-        | 4 -> x.Word4 |> getLetter |> getMask2 (x.Wordle)
-        | 5 -> x.Word5 |> getLetter |> getMask2 (x.Wordle)
-    x
+        | 1 -> {x with Word1 = fst x.Word1, x.Word1 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
+        | 2 -> {x with Word2 = fst x.Word2, x.Word2 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
+        | 3 -> {x with Word3 = fst x.Word3, x.Word3 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
+        | 4 -> {x with Word4 = fst x.Word4, x.Word4 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
+        | 5 -> {x with Word5 = fst x.Word5, x.Word5 |> getWord |> getMask2 (x.Wordle); Round = x.Round}
+    guess
 
 let isGameFinished (x: StartedState) =
     match x.State with
     | Lost -> true
     | _ -> false
 
-let boxedChar ((c, status): string * LetterStatus)=
-    match status with 
-    | Black -> 
+let boxedChar ((c, status): string * LetterStatus) =
+    match status with
+    | Black ->
+        // all this gumph here is tailwind style css
+        // https://tailwindcss.com/docs/border-style
         html
             $"""
-            <div class="w-14 border-solid border-2 flex items-center text-4xl font-bold rounded text-white">
-                <button                        
-                    class="w-14 h-14 bg-slate-600 text-center leading-none text-white"
-                >{c}</button>
+            <div class="border-solid border-transparent flex border-2 items-center rounded">
+                <button class="w-14 h-14 bg-slate-500 text-center leading-none text-3xl font-bold text-white">{c}</button>
             </div>
         """
     | Grey ->
         html
             $"""
-            <div class="w-14 border-solid border-2 flex items-center text-4xl font-bold rounded text-white">
-                <button                        
-                    class="w-14 h-14 bg-slate-800 text-center leading-none text-white"
-                >{c}</button>
+            <div class="border-solid border-transparent flex border-2 items-center rounded">
+                <button class="w-14 h-14 bg-slate-800 text-center leading-none text-3xl font-bold text-white">{c}</button>
             </div>
         """
     | Green ->
         html
             $"""
-            <div class="w-14 border-solid border-2 flex items-center text-4xl font-bold rounded text-white">
-                <button                        
-                    class="w-14 h-14 bg-green-500 text-center leading-none text-white"
-                >{c}</button>
+            <div class="border-solid border-transparent flex border-2 items-center rounded">
+                <button class="w-14 h-14 bg-green-600 text-center leading-none text-3xl font-bold text-white">{c}</button>
             </div>
         """
     | Yellow ->
         html
             $"""
-            <div class="w-14 border-solid border-2 flex items-center text-4xl font-bold rounded text-white">
-                <button                        
-                    class="w-14 h-14 bg-yellow-500 text-center leading-none text-white"
-                >{c}</button>
+            <div class="border-solid border-transparent flex border-2 items-center rounded">
+                <button class="w-14 h-14 bg-yellow-400 text-center leading-none text-3xl font-bold text-white">{c}</button>
             </div>
         """
 
@@ -211,7 +222,7 @@ let startGameFromFinished setGameState =
             </div>
             <div class="flex flex-row justify-center">
                 <button
-                    class="block p-6 rounded bg-gray-300 text-center leading-none font-6xl font-mono"
+                    class="block p-6 rounded bg-gray-200 text-center leading-none font-6xl font-mono"
                     @click={Ev(fun _ -> startNewGame |> Started |> setGameState)}
                 >
                     Go again
@@ -273,7 +284,7 @@ let MatchComponent () =
                 <div class="w-11 px-1 mb-2">
                     <button
                         @click={handler c}
-                        class="block w-full h-12 rounded bg-slate-400 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"
+                        class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"
                     >{c}</button>
                 </div>
             """
@@ -284,7 +295,9 @@ let MatchComponent () =
 
         //let firstRow = startedState.Word1 |> Array.map boxedChar
         let getLetter (_, word) =
-            let letter (word, status) = defaultArg word "", status
+            let letter (word, status) =
+                let letterString = defaultArg word ""
+                letterString.ToUpper(), status
 
             [ letter word.Letter1
               letter word.Letter2
@@ -349,7 +362,7 @@ let MatchComponent () =
             $"""
             <div class="space-y-4">
                 <div class="flex flex-row justify-center">
-                    "My little wordle game"
+                        My little wordle game
                 </div>
                 <div class="flex flex-row justify-center">
                     {startedState.Word1
