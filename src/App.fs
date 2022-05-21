@@ -37,6 +37,7 @@ and GameState =
     | Started of StartedState
 
 let emptyGuess =
+    1,
     { Letter1 = None, Black
       Letter2 = None, Black
       Letter3 = None, Black
@@ -60,11 +61,11 @@ let startNewGame =
         ]
 
     { Wordle = "CRIME"
-      Guess1 = 1, emptyGuess
-      Guess2 = 1, emptyGuess
-      Guess3 = 1, emptyGuess
-      Guess4 = 1, emptyGuess
-      Guess5 = 1, emptyGuess
+      Guess1 = emptyGuess
+      Guess2 = emptyGuess
+      Guess3 = emptyGuess
+      Guess4 = emptyGuess
+      Guess5 = emptyGuess
       Round = 1
       State = NotStarted }
 
@@ -164,6 +165,7 @@ let getWord (_, word) =
     |> Seq.fold (+) ""
 
 // check the word against the wordle, then set whether each letter is green, grey, yellow
+// refactor this, bit of a mess
 let submitEnter x =
     let advanceRound = x.Round + 1
     let guess =
@@ -179,12 +181,7 @@ let submitEnter x =
         | _ -> {x with State = Lost}
     guess
 
-let isGameFinished (x: StartedState) =
-    match x.State with
-    | Lost -> true
-    | _ -> false
-
-let boxedChar ((c, status): string * LetterStatus) =
+let boxedChar (c, status) =
     // https://tailwindcss.com/docs/border-style
     let colour = 
         match status with 
@@ -199,12 +196,32 @@ let boxedChar ((c, status): string * LetterStatus) =
         </div>
     """
 
+let keyboardChar handler c =
+    html
+        $"""
+        <div class="w-11 px-1 mb-2">
+            <button
+                @click={handler c}
+                class="rounded-m m-px flex h-10 w-10 items-center justify-center uppercase bg-gray-300"
+            >{c}</button>
+        </div>
+    """
 [<LitElement("math-app")>]
 let MatchComponent () =
     let _ = LitElement.init (fun cfg -> cfg.useShadowDom <- false)
-
     let gameState, setGameState = Hook.useState NotStarted
 
+    let onKeyClick state (c: string) =
+        Ev (fun ev ->
+            ev.preventDefault ()
+            let submitEntry = 
+                match c with 
+                | "Ent" -> submitEnter
+                | "Del" -> submitDelete
+                | _ -> submitLetter c
+    
+            state |> submitEntry |> Started |> setGameState)
+    
     match gameState with
     | NotStarted ->
         html
@@ -219,47 +236,8 @@ let MatchComponent () =
             </div>
         """
     | Started startedState ->
-        let onKeyClick (c: string) =
-            Ev (fun ev ->
-                ev.preventDefault ()
-
-                startedState
-                |> submitLetter c
-                |> Started
-                |> setGameState)
-
-        let enter c =
-            Ev (fun ev ->
-                ev.preventDefault ()
-
-                startedState
-                |> submitEnter
-                |> Started
-                |> setGameState)
-
-        let delete c =
-            Ev (fun ev ->
-                ev.preventDefault ()
-
-                startedState
-                |> submitDelete
-                |> Started
-                |> setGameState)
-
-        let keyboardChar handler c =
-            html
-                $"""
-                <div class="w-11 px-1 mb-2">
-                    <button
-                        @click={handler c}
-                        class="rounded-m m-px flex h-10 w-10 items-center justify-center uppercase bg-gray-300"
-                    >{c}</button>
-                </div>
-            """
         // class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"            
-        let keyboardKey = keyboardChar onKeyClick
-        let enterChar = keyboardChar enter
-        let deleteChar = keyboardChar delete
+        let keyboardKey = keyboardChar (onKeyClick startedState)
 
         let letterToDisplayBox = 
             let getLetter (_, word) =
@@ -276,37 +254,16 @@ let MatchComponent () =
             getLetter >> List.map boxedChar
 
         let top =
-            [ "q"
-              "w"
-              "e"
-              "r"
-              "t"
-              "y"
-              "u"
-              "i"
-              "o"
-              "p" ]
+            [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
             |> List.map keyboardKey
 
         let middle =
-            [ "a"
-              "s"
-              "d"
-              "f"
-              "g"
-              "h"
-              "j"
-              "k"
-              "l" ]
+            [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ]
             |> List.map keyboardKey
 
         let bottom =
-            let bottomChars =
-                [ "z"; "x"; "c"; "v"; "b"; "n"; "m" ]
-                |> List.map keyboardKey
-
-            [ enterChar "Ent" ]
-            @ bottomChars @ [ deleteChar "Del" ]
+            [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ]
+            |> List.map keyboardKey
 
         html
             $"""
