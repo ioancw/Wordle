@@ -11,20 +11,22 @@ type LetterStatus =
     | Grey
     | Black
 
-type Word =
+type Guess =
     { Letter1: string option * LetterStatus
       Letter2: string option * LetterStatus
       Letter3: string option * LetterStatus
       Letter4: string option * LetterStatus
       Letter5: string option * LetterStatus }
 
+type Position = int
+
 type StartedState =
     { Wordle: string
-      Word1: int * Word
-      Word2: int * Word
-      Word3: int * Word
-      Word4: int * Word
-      Word5: int * Word
+      Guess1: Position * Guess
+      Guess2: Position * Guess
+      Guess3: Position * Guess
+      Guess4: Position * Guess
+      Guess5: Position * Guess
       Round: int
       State: GameState }
 
@@ -34,7 +36,7 @@ and GameState =
     | Lost
     | Started of StartedState
 
-let emptyWord =
+let emptyGuess =
     { Letter1 = None, Black
       Letter2 = None, Black
       Letter3 = None, Black
@@ -58,15 +60,15 @@ let startNewGame =
         ]
 
     { Wordle = "CRIME"
-      Word1 = 1, emptyWord
-      Word2 = 1, emptyWord
-      Word3 = 1, emptyWord
-      Word4 = 1, emptyWord
-      Word5 = 1, emptyWord
+      Guess1 = 1, emptyGuess
+      Guess2 = 1, emptyGuess
+      Guess3 = 1, emptyGuess
+      Guess4 = 1, emptyGuess
+      Guess5 = 1, emptyGuess
       Round = 1
       State = NotStarted }
 
-let getMask2 (actual: string) (guess: string) =
+let getAnswerMask (actual: string) (guess: string) =
     let removeFirstInstance remove fromList =
         let rec removeFirst predicate =
             function
@@ -135,20 +137,20 @@ let getNewWordStateDelete (position, word) =
 let submitLetter input x =
     let addLetterToWord = getNewWordStateAdd (Some input, Black)
     match x.Round with
-    | 1 -> { x with Word1 = addLetterToWord x.Word1 }
-    | 2 -> { x with Word2 = addLetterToWord x.Word2 }
-    | 3 -> { x with Word3 = addLetterToWord x.Word3 }
-    | 4 -> { x with Word4 = addLetterToWord x.Word4 }
-    | 5 -> { x with Word5 = addLetterToWord x.Word5 }
+    | 1 -> { x with Guess1 = addLetterToWord x.Guess1 }
+    | 2 -> { x with Guess2 = addLetterToWord x.Guess2 }
+    | 3 -> { x with Guess3 = addLetterToWord x.Guess3 }
+    | 4 -> { x with Guess4 = addLetterToWord x.Guess4 }
+    | 5 -> { x with Guess5 = addLetterToWord x.Guess5 }
     | _ -> failwithf "There is no higher purpose"
 
 let submitDelete x =
     match x.Round with
-    | 1 -> { x with Word1 = getNewWordStateDelete x.Word1 }
-    | 2 -> { x with Word2 = getNewWordStateDelete x.Word2 }
-    | 3 -> { x with Word3 = getNewWordStateDelete x.Word3 }
-    | 4 -> { x with Word4 = getNewWordStateDelete x.Word4 }
-    | 5 -> { x with Word5 = getNewWordStateDelete x.Word5 }
+    | 1 -> { x with Guess1 = getNewWordStateDelete x.Guess1 }
+    | 2 -> { x with Guess2 = getNewWordStateDelete x.Guess2 }
+    | 3 -> { x with Guess3 = getNewWordStateDelete x.Guess3 }
+    | 4 -> { x with Guess4 = getNewWordStateDelete x.Guess4 }
+    | 5 -> { x with Guess5 = getNewWordStateDelete x.Guess5 }
     | _ -> failwithf "There is no higher purpose"
 
 let getWord (_, word) =
@@ -163,13 +165,18 @@ let getWord (_, word) =
 
 // check the word against the wordle, then set whether each letter is green, grey, yellow
 let submitEnter x =
+    let advanceRound = x.Round + 1
     let guess =
         match x.Round with
-        | 1 -> {x with Word1 = fst x.Word1, x.Word1 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
-        | 2 -> {x with Word2 = fst x.Word2, x.Word2 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
-        | 3 -> {x with Word3 = fst x.Word3, x.Word3 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
-        | 4 -> {x with Word4 = fst x.Word4, x.Word4 |> getWord |> getMask2 (x.Wordle); Round = x.Round + 1}
-        | 5 -> {x with Word5 = fst x.Word5, x.Word5 |> getWord |> getMask2 (x.Wordle); Round = x.Round}
+        | 1 -> {x with 
+                    Guess1 = fst x.Guess1, x.Guess1 |> getWord |> getAnswerMask (x.Wordle); 
+                    Round = advanceRound
+                    State = if (x.Guess1 |> getWord) = x.Wordle then Won else Started x}
+        | 2 -> {x with Guess2 = fst x.Guess2, x.Guess2 |> getWord |> getAnswerMask (x.Wordle); Round = advanceRound}
+        | 3 -> {x with Guess3 = fst x.Guess3, x.Guess3 |> getWord |> getAnswerMask (x.Wordle); Round = advanceRound}
+        | 4 -> {x with Guess4 = fst x.Guess4, x.Guess4 |> getWord |> getAnswerMask (x.Wordle); Round = advanceRound}
+        | 5 -> {x with Guess5 = fst x.Guess5, x.Guess5 |> getWord |> getAnswerMask (x.Wordle); Round = x.Round}
+        | _ -> {x with State = Lost}
     guess
 
 let isGameFinished (x: StartedState) =
@@ -178,56 +185,17 @@ let isGameFinished (x: StartedState) =
     | _ -> false
 
 let boxedChar ((c, status): string * LetterStatus) =
-    match status with
-    | Black ->
-        // all this gumph here is tailwind style css
-        // https://tailwindcss.com/docs/border-style
-        html
-            $"""
-            <div class="border-solid border-transparent flex border-2 items-center rounded">
-                <button class="w-14 h-14 bg-slate-500 text-center leading-none text-3xl font-bold text-white">{c}</button>
-            </div>
-        """
-    | Grey ->
-        html
-            $"""
-            <div class="border-solid border-transparent flex border-2 items-center rounded">
-                <button class="w-14 h-14 bg-slate-800 text-center leading-none text-3xl font-bold text-white">{c}</button>
-            </div>
-        """
-    | Green ->
-        html
-            $"""
-            <div class="border-solid border-transparent flex border-2 items-center rounded">
-                <button class="w-14 h-14 bg-green-600 text-center leading-none text-3xl font-bold text-white">{c}</button>
-            </div>
-        """
-    | Yellow ->
-        html
-            $"""
-            <div class="border-solid border-transparent flex border-2 items-center rounded">
-                <button class="w-14 h-14 bg-yellow-400 text-center leading-none text-3xl font-bold text-white">{c}</button>
-            </div>
-        """
-
-let startGameFromFinished setGameState =
+    // https://tailwindcss.com/docs/border-style
+    let colour = 
+        match status with 
+        | Black -> "bg-slate-800"
+        | Grey -> "bg-slate-600"
+        | Green -> "bg-green-600"
+        | Yellow -> "bg-yellow-400"
     html
         $"""
-        <div class="space-y-4">
-            <div class="flex flex-row justify-center">
-                "bla"
-            </div>
-            <div class="flex flex-row justify-center">
-                "bla"
-            </div>
-            <div class="flex flex-row justify-center">
-                <button
-                    class="block p-6 rounded bg-gray-200 text-center leading-none font-6xl font-mono"
-                    @click={Ev(fun _ -> startNewGame |> Started |> setGameState)}
-                >
-                    Go again
-                </button>
-            </div>
+        <div class="border-solid border-transparent flex border-2 items-center rounded">
+            <button class="w-14 h-14 {colour} text-center leading-none text-3xl font-bold text-white">{c}</button>
         </div>
     """
 
@@ -238,7 +206,7 @@ let MatchComponent () =
     let gameState, setGameState = Hook.useState NotStarted
 
     match gameState with
-    | GameState.NotStarted ->
+    | NotStarted ->
         html
             $"""
             <div class="flex flex-row justify-center mt-20">
@@ -284,46 +252,28 @@ let MatchComponent () =
                 <div class="w-11 px-1 mb-2">
                     <button
                         @click={handler c}
-                        class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"
+                        class="rounded-m m-px flex h-10 w-10 items-center justify-center uppercase bg-gray-300"
                     >{c}</button>
                 </div>
             """
-
+        // class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"            
         let keyboardKey = keyboardChar onKeyClick
         let enterChar = keyboardChar enter
         let deleteChar = keyboardChar delete
 
-        //let firstRow = startedState.Word1 |> Array.map boxedChar
-        let getLetter (_, word) =
-            let letter (word, status) =
-                let letterString = defaultArg word ""
-                letterString.ToUpper(), status
-
-            [ letter word.Letter1
-              letter word.Letter2
-              letter word.Letter3
-              letter word.Letter4
-              letter word.Letter5 ]
-
-        let secondRow =
-            startedState.Word2
-            |> getLetter
-            |> List.map boxedChar
-
-        let thirdRow =
-            startedState.Word3
-            |> getLetter
-            |> List.map boxedChar
-
-        let fourthRow =
-            startedState.Word4
-            |> getLetter
-            |> List.map boxedChar
-
-        let fifthRow =
-            startedState.Word5
-            |> getLetter
-            |> List.map boxedChar
+        let letterToDisplayBox = 
+            let getLetter (_, word) =
+                let letter (word, status) =
+                    let letterString = defaultArg word ""
+                    letterString.ToUpper(), status
+    
+                [ letter word.Letter1
+                  letter word.Letter2
+                  letter word.Letter3
+                  letter word.Letter4
+                  letter word.Letter5 ]
+            
+            getLetter >> List.map boxedChar
 
         let top =
             [ "q"
@@ -365,21 +315,19 @@ let MatchComponent () =
                         My little wordle game
                 </div>
                 <div class="flex flex-row justify-center">
-                    {startedState.Word1
-                     |> getLetter
-                     |> List.map boxedChar}
+                    {startedState.Guess1 |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {secondRow}
+                    {startedState.Guess2 |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {thirdRow}
+                    {startedState.Guess3 |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {fourthRow}
+                    {startedState.Guess4 |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {fifthRow}
+                    {startedState.Guess5 |> letterToDisplayBox}
                 </div>
                 <div class="flex flew-row justify-center">
                     {top}
