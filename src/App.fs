@@ -29,6 +29,7 @@ type StartedState =
       Guess3: Position * Guess
       Guess4: Position * Guess
       Guess5: Position * Guess
+      UsedLetters: Map<string, LetterStatus>
       Round: int
       State: GameState }
 
@@ -46,7 +47,7 @@ let emptyGuess =
       Letter4 = None, Black
       Letter5 = None, Black }
 
-let keyBoard = 
+let keyBoard =
     {
         Top = [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
         Middle = [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ]
@@ -76,6 +77,7 @@ let startNewGame =
       Guess4 = emptyGuess
       Guess5 = emptyGuess
       Round = 1
+      UsedLetters = Map.empty
       State = NotStarted }
 
 let getAnswerMask (actual: string) (guess: string) =
@@ -123,29 +125,19 @@ let getAnswerMask (actual: string) (guess: string) =
       Letter4 = associated'.[3]
       Letter5 = associated'.[4] }
 
-let getNewWordStateAdd newLetter (position, word) =
-    let advancedPosition = position + 1
-    match position with
-    | 1 -> advancedPosition, { word with Letter1 = newLetter }
-    | 2 -> advancedPosition, { word with Letter2 = newLetter }
-    | 3 -> advancedPosition, { word with Letter3 = newLetter }
-    | 4 -> advancedPosition, { word with Letter4 = newLetter }
-    | 5 -> advancedPosition, { word with Letter5 = newLetter }
-    | _ -> position, word
-
-let getNewWordStateDelete (position, word) =
-    let deletePosition = position - 1
-    // when adding or deleting, the Status will always be Black, as it's yet to be evaluated
-    match deletePosition with
-    | 1 -> deletePosition, { word with Letter1 = None, Black }
-    | 2 -> deletePosition, { word with Letter2 = None, Black }
-    | 3 -> deletePosition, { word with Letter3 = None, Black }
-    | 4 -> deletePosition, { word with Letter4 = None, Black }
-    | 5 -> deletePosition, { word with Letter5 = None, Black }
-    | _ -> position, word
-
 let submitLetter input x =
+    let getNewWordStateAdd newLetter (position, word) =
+        let advancedPosition = position + 1
+        match position with
+        | 1 -> advancedPosition, { word with Letter1 = newLetter }
+        | 2 -> advancedPosition, { word with Letter2 = newLetter }
+        | 3 -> advancedPosition, { word with Letter3 = newLetter }
+        | 4 -> advancedPosition, { word with Letter4 = newLetter }
+        | 5 -> advancedPosition, { word with Letter5 = newLetter }
+        | _ -> position, word
+
     let addLetterToWord = getNewWordStateAdd (Some input, Black)
+
     match x.Round with
     | 1 -> { x with Guess1 = addLetterToWord x.Guess1 }
     | 2 -> { x with Guess2 = addLetterToWord x.Guess2 }
@@ -155,6 +147,17 @@ let submitLetter input x =
     | _ -> failwithf "There is no higher purpose"
 
 let submitDelete x =
+    let getNewWordStateDelete (position, word) =
+        let deletePosition = position - 1
+        // when adding or deleting, the Status will always be Black, as it's yet to be evaluated
+        match deletePosition with
+        | 1 -> deletePosition, { word with Letter1 = None, Black }
+        | 2 -> deletePosition, { word with Letter2 = None, Black }
+        | 3 -> deletePosition, { word with Letter3 = None, Black }
+        | 4 -> deletePosition, { word with Letter4 = None, Black }
+        | 5 -> deletePosition, { word with Letter5 = None, Black }
+        | _ -> position, word
+
     match x.Round with
     | 1 -> { x with Guess1 = getNewWordStateDelete x.Guess1 }
     | 2 -> { x with Guess2 = getNewWordStateDelete x.Guess2 }
@@ -163,7 +166,7 @@ let submitDelete x =
     | 5 -> { x with Guess5 = getNewWordStateDelete x.Guess5 }
     | _ -> failwithf "There is no higher purpose"
 
-let getWord (_, word) =
+let getWord word =
     let letter (word, _) = defaultArg word ""
 
     [| letter word.Letter1
@@ -176,24 +179,51 @@ let getWord (_, word) =
 // check the word against the wordle, then set whether each letter is green, grey, yellow
 // refactor this, bit of a mess
 let submitEnter x =
+    let join (p:Map<'a,'b>) (q:Map<'a,'b>) =
+        Map(Seq.concat [ (Map.toSeq p) ; (Map.toSeq q) ])
     let advanceRound = x.Round + 1
+    let updateRoundStatus (position, guess) =
+        let guessWord = guess |> getWord
+        let guessMask = guessWord |> getAnswerMask x.Wordle
+        let letters =
+            let letterStatus (word, status) = defaultArg word "", status
+            [
+                letterStatus guessMask.Letter1
+                letterStatus guessMask.Letter2
+                letterStatus guessMask.Letter3
+                letterStatus guessMask.Letter4
+                letterStatus guessMask.Letter5
+            ] |> Map.ofList
+        let updatedGuess = (position, guessMask)
+        let updatesState = if guessWord = x.Wordle then Won else Started x
+        let updatedUsedLetters = letters |> join x.UsedLetters
+        updatedGuess, updatesState, updatedUsedLetters
+
     let guess =
         match x.Round with
-        | 1 -> {x with 
-                    Guess1 = fst x.Guess1, x.Guess1 |> getWord |> getAnswerMask (x.Wordle); 
-                    Round = advanceRound
-                    State = if (x.Guess1 |> getWord) = x.Wordle then Won else Started x}
-        | 2 -> {x with Guess2 = fst x.Guess2, x.Guess2 |> getWord |> getAnswerMask (x.Wordle); Round = advanceRound}
-        | 3 -> {x with Guess3 = fst x.Guess3, x.Guess3 |> getWord |> getAnswerMask (x.Wordle); Round = advanceRound}
-        | 4 -> {x with Guess4 = fst x.Guess4, x.Guess4 |> getWord |> getAnswerMask (x.Wordle); Round = advanceRound}
-        | 5 -> {x with Guess5 = fst x.Guess5, x.Guess5 |> getWord |> getAnswerMask (x.Wordle); Round = x.Round}
+        | 1 ->
+            let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess1
+            {x with Guess1 = updatedGuess; State = updatesState; UsedLetters = updatedUsedLetters; Round = advanceRound}
+        | 2 ->
+            let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess2
+            {x with Guess2 = updatedGuess; State = updatesState; UsedLetters = updatedUsedLetters; Round = advanceRound}
+        | 3 ->
+            let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess3
+            {x with Guess3 = updatedGuess; State = updatesState; UsedLetters = updatedUsedLetters; Round = advanceRound}
+        | 4 ->
+            let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess4
+            {x with Guess4 = updatedGuess; State = updatesState; UsedLetters = updatedUsedLetters; Round = advanceRound}
+        | 5 ->
+            let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess5
+            {x with Guess5 = updatedGuess; State = updatesState; UsedLetters = updatedUsedLetters; Round = advanceRound}
         | _ -> {x with State = Lost}
+
     guess
 
 let boxedChar (c, status) =
     // https://tailwindcss.com/docs/border-style
-    let colour = 
-        match status with 
+    let colour =
+        match status with
         | Black -> "bg-slate-800"
         | Grey -> "bg-slate-600"
         | Green -> "bg-green-600"
@@ -205,13 +235,24 @@ let boxedChar (c, status) =
         </div>
     """
 
-let keyboardChar handler c =
+let keyboardChar usedLetters handler c =
+    // class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"
+    let colour =
+        let letterStatus =
+            match Map.tryFind c usedLetters with
+            | Some x -> x
+            | None -> Black
+        match letterStatus with
+        | Black | Yellow  -> "bg-gray-300"
+        | Grey -> "bg-slate-600"
+        | Green -> "bg-green-600"
+
     html
         $"""
         <div class="w-11 px-1 mb-2">
             <button
                 @click={handler c}
-                class="rounded-m m-px flex h-10 w-10 items-center justify-center uppercase bg-gray-300"
+                class="block w-full h-12 rounded {colour} items-center justify-center uppercase"
             >{c}</button>
         </div>
     """
@@ -219,8 +260,8 @@ let keyboardChar handler c =
 let MatchComponent () =
     let _ = LitElement.init (fun cfg -> cfg.useShadowDom <- false)
     let gameState, setGameState = Hook.useState NotStarted
-    
-    let letterToDisplayBox = 
+
+    let letterToDisplayBox =
         let getLetter (_, word) =
             let letter (word, status) =
                 let letterString = defaultArg word ""
@@ -231,20 +272,20 @@ let MatchComponent () =
               letter word.Letter3
               letter word.Letter4
               letter word.Letter5 ]
-        
+
         getLetter >> List.map boxedChar
 
     let onKeyClick state (c: string) =
         Ev (fun ev ->
             ev.preventDefault ()
-            let submitEntry = 
-                match c with 
+            let submitEntry =
+                match c with
                 | "Ent" -> submitEnter
                 | "Del" -> submitDelete
                 | _ -> submitLetter c
-    
+
             state |> submitEntry |> Started |> setGameState)
-    
+
     match gameState with
     | NotStarted ->
         html
@@ -259,8 +300,8 @@ let MatchComponent () =
             </div>
         """
     | Started startedState ->
-        // class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"            
-        let keyboardKey = keyboardChar (onKeyClick startedState)
+
+        let keyboardKey = keyboardChar startedState.UsedLetters (onKeyClick startedState)
 
         html
             $"""
