@@ -5,6 +5,8 @@ open Lit
 
 Fable.Core.JsInterop.importSideEffects "./index.css"
 
+type KeyBoard = {Top: string list; Middle: string list; Bottom: string list}
+
 type LetterStatus =
     | Green
     | Yellow
@@ -43,6 +45,13 @@ let emptyGuess =
       Letter3 = None, Black
       Letter4 = None, Black
       Letter5 = None, Black }
+
+let keyBoard = 
+    {
+        Top = [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
+        Middle = [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ]
+        Bottom = [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ]
+    }
 
 let startNewGame =
     let wordles =
@@ -210,6 +219,20 @@ let keyboardChar handler c =
 let MatchComponent () =
     let _ = LitElement.init (fun cfg -> cfg.useShadowDom <- false)
     let gameState, setGameState = Hook.useState NotStarted
+    
+    let letterToDisplayBox = 
+        let getLetter (_, word) =
+            let letter (word, status) =
+                let letterString = defaultArg word ""
+                letterString.ToUpper(), status
+
+            [ letter word.Letter1
+              letter word.Letter2
+              letter word.Letter3
+              letter word.Letter4
+              letter word.Letter5 ]
+        
+        getLetter >> List.map boxedChar
 
     let onKeyClick state (c: string) =
         Ev (fun ev ->
@@ -239,32 +262,6 @@ let MatchComponent () =
         // class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"            
         let keyboardKey = keyboardChar (onKeyClick startedState)
 
-        let letterToDisplayBox = 
-            let getLetter (_, word) =
-                let letter (word, status) =
-                    let letterString = defaultArg word ""
-                    letterString.ToUpper(), status
-    
-                [ letter word.Letter1
-                  letter word.Letter2
-                  letter word.Letter3
-                  letter word.Letter4
-                  letter word.Letter5 ]
-            
-            getLetter >> List.map boxedChar
-
-        let top =
-            [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
-            |> List.map keyboardKey
-
-        let middle =
-            [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ]
-            |> List.map keyboardKey
-
-        let bottom =
-            [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ]
-            |> List.map keyboardKey
-
         html
             $"""
             <div class="space-y-4">
@@ -287,13 +284,13 @@ let MatchComponent () =
                     {startedState.Guess5 |> letterToDisplayBox}
                 </div>
                 <div class="flex flew-row justify-center">
-                    {top}
+                    {keyBoard.Top |> List.map keyboardKey}
                 </div>
                 <div class="flex flew-row justify-center mb-1">
-                    {middle}
+                    {keyBoard.Middle |> List.map keyboardKey}
                 </div>
                 <div class="flex flew-row justify-center">
-                    {bottom}
+                    {keyBoard.Bottom |> List.map keyboardKey}
                 </div>
             </div>
         """
