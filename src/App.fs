@@ -70,7 +70,7 @@ let startNewGame =
             "LANDS"
         ]
 
-    { Wordle = "CRIME"
+    { Wordle = "CHEAT"
       Guess1 = emptyGuess
       Guess2 = emptyGuess
       Guess3 = emptyGuess
@@ -193,7 +193,9 @@ let submitEnter x =
                 letterStatus guessMask.Letter3
                 letterStatus guessMask.Letter4
                 letterStatus guessMask.Letter5
-            ] |> Map.ofList
+            ]
+            |> List.filter (fun (l, s) -> s = Green || s = Grey)
+            |> Map.ofList
         let updatedGuess = (position, guessMask)
         let updatesState = if guessWord = x.Wordle then Won else Started x
         let updatedUsedLetters = letters |> join x.UsedLetters
@@ -307,7 +309,7 @@ let MatchComponent () =
             $"""
             <div class="space-y-4">
                 <div class="flex flex-row justify-center">
-                        My little wordle game
+                        I'm watching you Nia.
                 </div>
                 <div class="flex flex-row justify-center">
                     {startedState.Guess1 |> letterToDisplayBox}
