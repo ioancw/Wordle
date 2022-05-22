@@ -7,42 +7,36 @@ Fable.Core.JsInterop.importSideEffects "./index.css"
 
 type KeyBoard = {Top: string list; Middle: string list; Bottom: string list}
 
-type LetterStatus =
+type Status =
     | Green
     | Yellow
     | Grey
     | Black
 
-// is it better to have as an array intead?
-type Guess =
-    { Letter1: string option * LetterStatus
-      Letter2: string option * LetterStatus
-      Letter3: string option * LetterStatus
-      Letter4: string option * LetterStatus
-      Letter5: string option * LetterStatus }
+type GuessLetter = {Letter: string option; Status: Status}
+
+type Guess = 
+    {Letters: GuessLetter list}
 
     member t.AsWord() = 
-        let letter (word, _) = defaultArg word ""
-
         let guess = 
-            [| letter t.Letter1
-               letter t.Letter2
-               letter t.Letter3
-               letter t.Letter4
-               letter t.Letter5 |]
+            t.Letters 
+            |> List.map (fun gl -> defaultArg gl.Letter "")
             |> Seq.fold (+) ""
         guess.ToUpper()
+
+let emptyGuess = 
+    1, 
+    {Letters = List.init 5 (fun i -> {Letter = None; Status = Black})}
+
+let emptyGuesses = List.init 5 (fun i -> emptyGuess)
 
 type Position = int
 
 type StartedState =
     { Wordle: string
-      Guess1: Position * Guess
-      Guess2: Position * Guess
-      Guess3: Position * Guess
-      Guess4: Position * Guess
-      Guess5: Position * Guess
-      UsedLetters: Map<string, LetterStatus>
+      Guesses: (Position * Guess) list
+      UsedLetters: Map<string, Status>
       Round: int }
 
 type GameState =
@@ -50,14 +44,6 @@ type GameState =
     | Won
     | Lost
     | Started of StartedState
-
-let emptyGuess =
-    1,
-    { Letter1 = None, Black
-      Letter2 = None, Black
-      Letter3 = None, Black
-      Letter4 = None, Black
-      Letter5 = None, Black }
 
 let keyBoard =
     {
@@ -116,11 +102,7 @@ let startNewGame () =
         wordles.[index]
 
     { Wordle = wordle
-      Guess1 = emptyGuess
-      Guess2 = emptyGuess
-      Guess3 = emptyGuess
-      Guess4 = emptyGuess
-      Guess5 = emptyGuess
+      Guesses = emptyGuesses
       Round = 1
       UsedLetters = Map.empty }
 
@@ -158,57 +140,45 @@ let getAnswerMask (actual: string) (guess: string) =
 
     let letters = Seq.zip actual guess |> Seq.toList
     let masked = masker letters (notMatched letters) [] |> List.rev
-    let associated = Seq.zip guess masked |> Seq.toList
 
-    let associated' =
-        associated
-        |> List.map (fun (a, m) -> Some(string a), m)
+    {Letters = 
+        Seq.zip guess masked |> Seq.toList
+        |> List.map (fun (a, m) -> {Letter = Some(string a); Status = m})}
 
-    { Letter1 = associated'.[0]
-      Letter2 = associated'.[1]
-      Letter3 = associated'.[2]
-      Letter4 = associated'.[3]
-      Letter5 = associated'.[4] }
+let listSet list value pos = list |> List.mapi (fun i v -> if i = pos then value else v)
 
 let submitLetter input x =
-    let getNewWordStateAdd newLetter (position, word) =
+    let getNewWordStateAdd newLetter (position, guessLetters) =
         let advancedPosition = position + 1
         match position with
-        | 1 -> advancedPosition, { word with Letter1 = newLetter }
-        | 2 -> advancedPosition, { word with Letter2 = newLetter }
-        | 3 -> advancedPosition, { word with Letter3 = newLetter }
-        | 4 -> advancedPosition, { word with Letter4 = newLetter }
-        | 5 -> advancedPosition, { word with Letter5 = newLetter }
-        | _ -> position, word
+        | n when n < 6 -> 
+            advancedPosition, {Letters = listSet guessLetters.Letters newLetter (advancedPosition - 2)}
+        | _ -> 
+            position, {Letters = guessLetters.Letters}
 
-    let addLetterToWord = getNewWordStateAdd (Some input, Black)
+    let addLetterToWord = getNewWordStateAdd {Letter = Some input; Status = Black}
 
     match x.Round with
-    | 1 -> { x with Guess1 = addLetterToWord x.Guess1 }
-    | 2 -> { x with Guess2 = addLetterToWord x.Guess2 }
-    | 3 -> { x with Guess3 = addLetterToWord x.Guess3 }
-    | 4 -> { x with Guess4 = addLetterToWord x.Guess4 }
-    | 5 -> { x with Guess5 = addLetterToWord x.Guess5 }
+    | n when n > 0 && n < 6 ->
+        let item = (List.item (n - 1) x.Guesses)
+        let updated = addLetterToWord item
+        {x with Guesses = listSet x.Guesses updated (n - 1)}
     | _ -> failwithf "There is no higher purpose"
 
 let submitDelete x =
-    let getNewWordStateDelete (position, word) =
+    let getNewWordStateDelete (position, guessLetters) =
         let deletePosition = position - 1
-        // when adding or deleting, the Status will always be Black, as it's yet to be evaluated
+        let deletedLetter = {Letter = None; Status = Black}
         match deletePosition with
-        | 1 -> deletePosition, { word with Letter1 = None, Black }
-        | 2 -> deletePosition, { word with Letter2 = None, Black }
-        | 3 -> deletePosition, { word with Letter3 = None, Black }
-        | 4 -> deletePosition, { word with Letter4 = None, Black }
-        | 5 -> deletePosition, { word with Letter5 = None, Black }
-        | _ -> position, word
+        | n when n < 6 -> 
+            deletePosition, {Letters = listSet guessLetters.Letters deletedLetter (deletePosition - 1)}
+        | _ -> position, {Letters = guessLetters.Letters}
 
     match x.Round with
-    | 1 -> { x with Guess1 = getNewWordStateDelete x.Guess1 }
-    | 2 -> { x with Guess2 = getNewWordStateDelete x.Guess2 }
-    | 3 -> { x with Guess3 = getNewWordStateDelete x.Guess3 }
-    | 4 -> { x with Guess4 = getNewWordStateDelete x.Guess4 }
-    | 5 -> { x with Guess5 = getNewWordStateDelete x.Guess5 }
+    | n when n > 0 && n < 6 ->
+        let item = (List.item (n - 1) x.Guesses)
+        let updated = getNewWordStateDelete item
+        {x with Guesses = listSet x.Guesses updated (n - 1)}
     | _ -> failwithf "There is no higher purpose"
 
 let submitEnter x =
@@ -218,14 +188,8 @@ let submitEnter x =
         let guessWord = guess.AsWord()
         let guessMask = guessWord |> getAnswerMask x.Wordle
         let letters =
-            let letterStatus (word, status) = defaultArg word "", status
-            [
-                letterStatus guessMask.Letter1
-                letterStatus guessMask.Letter2
-                letterStatus guessMask.Letter3
-                letterStatus guessMask.Letter4
-                letterStatus guessMask.Letter5
-            ]
+            guessMask.Letters
+            |> List.map (fun gl -> defaultArg gl.Letter "", gl.Status)
             |> List.filter (fun (l, s) -> s = Green || s = Grey && not <| x.UsedLetters.ContainsKey l)
             |> Map.ofList
         let updatedGuess = (position, guessMask)
@@ -234,21 +198,12 @@ let submitEnter x =
         updatedGuess, updatesState, updatedUsedLetters
 
     match x.Round with
-    | 1 ->
-        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess1
-        {x with Guess1 = updatedGuess; UsedLetters = updatedUsedLetters; Round = advanceRound}
-    | 2 ->
-        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess2
-        {x with Guess2 = updatedGuess; UsedLetters = updatedUsedLetters; Round = advanceRound}
-    | 3 ->
-        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess3
-        {x with Guess3 = updatedGuess; UsedLetters = updatedUsedLetters; Round = advanceRound}
-    | 4 ->
-        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess4
-        {x with Guess4 = updatedGuess; UsedLetters = updatedUsedLetters; Round = advanceRound}
-    | 5 ->
-        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus x.Guess5
-        {x with Guess5 = updatedGuess; UsedLetters = updatedUsedLetters; Round = advanceRound}
+    | n when n > 0 && n < 6 ->
+        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus (List.item (n-1) x.Guesses)
+        {x with 
+            Guesses = listSet x.Guesses updatedGuess (n-1); 
+            UsedLetters = updatedUsedLetters; 
+            Round = advanceRound}
     | _ -> x
 
 let boxedChar (c, status) =
@@ -266,8 +221,7 @@ let boxedChar (c, status) =
         </div>
     """
 
-let keyboardChar usedLetters handler c =
-    // class="block w-full h-12 rounded bg-slate-300 hover:bg-slate-300 active:bg-slate-400 text-center leading-none text-white"
+let keyboardChar usedLetters handler (c: string) =
     let colour =
         let letterStatus =
             match Map.tryFind c usedLetters with
@@ -296,19 +250,15 @@ let MatchComponent () =
     let writeState state = 
         let letterToDisplayBox =
             let getLetter (_, word) =
-                let letter (word, status) =
-                    let letterString = defaultArg word ""
-                    letterString.ToUpper(), status
+                let letter letter =
+                    let letterString = defaultArg letter.Letter ""
+                    letterString.ToUpper(), letter.Status
 
-                [ letter word.Letter1
-                  letter word.Letter2
-                  letter word.Letter3
-                  letter word.Letter4
-                  letter word.Letter5 ]
+                word.Letters |> List.map letter
 
             getLetter >> List.map boxedChar
 
-        let onKeyClick state (c: string) =
+        let onKeyClick (c: string) =
             Ev (fun ev ->
                 ev.preventDefault ()
                 let submitEntry =
@@ -319,7 +269,7 @@ let MatchComponent () =
 
                 state |> submitEntry |> Started |> setGameState)
 
-        let keyboardKey = keyboardChar state.UsedLetters (onKeyClick state)
+        let keyboardKey = keyboardChar state.UsedLetters onKeyClick
         
         html
             $"""
@@ -328,19 +278,19 @@ let MatchComponent () =
                     "Wordle"
                 </div>
                 <div class="flex flex-row justify-center">
-                    {state.Guess1 |> letterToDisplayBox}
+                    {List.item 0 state.Guesses |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {state.Guess2 |> letterToDisplayBox}
+                    {List.item 1 state.Guesses |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {state.Guess3 |> letterToDisplayBox}
+                    {List.item 2 state.Guesses |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {state.Guess4 |> letterToDisplayBox}
+                    {List.item 3 state.Guesses |> letterToDisplayBox}
                 </div>
                 <div class="flex flex-row justify-center">
-                    {state.Guess5 |> letterToDisplayBox}
+                    {List.item 4 state.Guesses |> letterToDisplayBox}
                 </div>
                 <div class="flex flew-row justify-center">
                     {keyBoard.Top |> List.map keyboardKey}
@@ -366,4 +316,3 @@ let MatchComponent () =
         startNewGame () |> writeState
     | Lost -> 
         startNewGame () |> writeState
-
