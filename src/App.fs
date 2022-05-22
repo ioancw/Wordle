@@ -5,7 +5,10 @@ open Lit
 
 Fable.Core.JsInterop.importSideEffects "./index.css"
 
-type KeyBoard = {Top: string list; Middle: string list; Bottom: string list}
+type KeyBoard =
+    { Top: string list
+      Middle: string list
+      Bottom: string list }
 
 type Status =
     | Green
@@ -13,23 +16,26 @@ type Status =
     | Grey
     | Black
 
-type GuessLetter = {Letter: string option; Status: Status}
+type GuessLetter =
+    { Letter: string option
+      Status: Status }
 
-type Guess = 
-    {Letters: GuessLetter list}
+type Guess =
+    { Letters: GuessLetter list }
 
-    member t.AsWord() = 
-        let guess = 
-            t.Letters 
+    member t.AsWord() =
+        let guess =
+            t.Letters
             |> List.map (fun gl -> defaultArg gl.Letter "")
             |> Seq.fold (+) ""
+
         guess.ToUpper()
 
-let emptyGuess = 
-    1, 
-    {Letters = List.init 5 (fun i -> {Letter = None; Status = Black})}
+let emptyGuesses =
+    let emptyGuess =
+        1, { Letters = List.init 5 (fun _ -> { Letter = None; Status = Black }) }
 
-let emptyGuesses = List.init 5 (fun i -> emptyGuess)
+    List.init 5 (fun _ -> emptyGuess)
 
 type Position = int
 
@@ -46,62 +52,86 @@ type GameState =
     | Started of StartedState
 
 let keyBoard =
-    {
-        Top = [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
-        Middle = [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ]
-        Bottom = [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ]
-    }
+    { Top =
+        [ "q"
+          "w"
+          "e"
+          "r"
+          "t"
+          "y"
+          "u"
+          "i"
+          "o"
+          "p" ]
+      Middle =
+        [ "a"
+          "s"
+          "d"
+          "f"
+          "g"
+          "h"
+          "j"
+          "k"
+          "l" ]
+      Bottom =
+        [ "Ent"
+          "z"
+          "x"
+          "c"
+          "v"
+          "b"
+          "n"
+          "m"
+          "Del" ] }
 
 let startNewGame () =
     let wordles =
-        [
-            "BORED"
-            "FLAME"
-            "TRIAL"
-            "CRIME"
-            "BLAZE"
-            "SUCKS"
-            "QUACK"
-            "NIGHT"
-            "GRIME"
-            "ARISE"
-            "UNLIT"
-            "BRINE"
-            "WRUNG"
-            "POTTY"
-            "LANDS"
-            "BRAVE"
-            "FERAL"
-            "HORSE"
-            "MAISE"
-            "GRAZE"
-            "FRAME"
-            "BLUNT"
-            "GRUNT"
-            "BRAIN"
-            "FRONT"
-            "BROKE"
-            "FLIPS"
-            "MAPLE"
-            "WHITE"
-            "HOVER"
-            "TRAIL"
-            "ROVER"
-            "RIGHT"
-            "WRONG"
-        ]
+        [ "BORED"
+          "FLAME"
+          "TRIAL"
+          "CRIME"
+          "BLAZE"
+          "SUCKS"
+          "QUACK"
+          "NIGHT"
+          "GRIME"
+          "ARISE"
+          "UNLIT"
+          "BRINE"
+          "WRUNG"
+          "POTTY"
+          "LANDS"
+          "BRAVE"
+          "FERAL"
+          "HORSE"
+          "MAISE"
+          "GRAZE"
+          "FRAME"
+          "BLUNT"
+          "GRUNT"
+          "BRAIN"
+          "FRONT"
+          "BROKE"
+          "FLIPS"
+          "MAPLE"
+          "WHITE"
+          "HOVER"
+          "TRAIL"
+          "ROVER"
+          "RIGHT"
+          "WRONG" ]
 
-    let wordle = 
+    let wordle () =
         let today = DateTime.Now
         let startDate = DateTime(2022, 5, 21)
         let todayDate = DateTime(today.Year, today.Month, today.Day)
-        let differenceMilli = (todayDate - startDate).Milliseconds
-        let millisInDay = 60 * 60 * 24 * 1000
-        let differenceDays = differenceMilli / millisInDay
+        let differenceMilli = (todayDate - startDate).TotalMilliseconds
+        let millisInDay = 60 * 60 * 24 * 1000 |> double
+        let differenceDays = round (differenceMilli / millisInDay) |> int
         let index = differenceDays % wordles.Length
         wordles.[index]
 
-    { Wordle = wordle
+    { Wordle = wordle ()
       Guesses = emptyGuesses
       Round = 1
       UsedLetters = Map.empty }
@@ -141,69 +171,93 @@ let getAnswerMask (actual: string) (guess: string) =
     let letters = Seq.zip actual guess |> Seq.toList
     let masked = masker letters (notMatched letters) [] |> List.rev
 
-    {Letters = 
-        Seq.zip guess masked |> Seq.toList
-        |> List.map (fun (a, m) -> {Letter = Some(string a); Status = m})}
+    { Letters =
+        Seq.zip guess masked
+        |> Seq.toList
+        |> List.map (fun (a, m) -> { Letter = Some(string a); Status = m }) }
 
-let listSet list value pos = list |> List.mapi (fun i v -> if i = pos then value else v)
+let listSet list value pos =
+    list
+    |> List.mapi (fun i v -> if i = pos then value else v)
+
+let applyLetterUpdate updateFunction x =
+    match x.Round with
+    | n when n > 0 && n < 6 ->
+        let item = List.item (n - 1) x.Guesses
+        let updated = updateFunction item
+        { x with Guesses = listSet x.Guesses updated (n - 1) }
+    | _ -> failwithf "There is no higher purpose"
 
 let submitLetter input x =
     let getNewWordStateAdd newLetter (position, guessLetters) =
         let advancedPosition = position + 1
+
         match position with
-        | n when n < 6 -> 
-            advancedPosition, {Letters = listSet guessLetters.Letters newLetter (advancedPosition - 2)}
-        | _ -> 
-            position, {Letters = guessLetters.Letters}
+        | n when n > 0 && n < 6 ->
+            advancedPosition, { Letters = listSet guessLetters.Letters newLetter (advancedPosition - 2) }
+        | _ -> position, { Letters = guessLetters.Letters }
 
-    let addLetterToWord = getNewWordStateAdd {Letter = Some input; Status = Black}
+    let addLetterToWord = getNewWordStateAdd { Letter = Some input; Status = Black }
 
-    match x.Round with
-    | n when n > 0 && n < 6 ->
-        let item = (List.item (n - 1) x.Guesses)
-        let updated = addLetterToWord item
-        {x with Guesses = listSet x.Guesses updated (n - 1)}
-    | _ -> failwithf "There is no higher purpose"
+    applyLetterUpdate addLetterToWord x
 
 let submitDelete x =
     let getNewWordStateDelete (position, guessLetters) =
         let deletePosition = position - 1
-        let deletedLetter = {Letter = None; Status = Black}
-        match deletePosition with
-        | n when n < 6 -> 
-            deletePosition, {Letters = listSet guessLetters.Letters deletedLetter (deletePosition - 1)}
-        | _ -> position, {Letters = guessLetters.Letters}
+        let deletedLetter = { Letter = None; Status = Black }
 
-    match x.Round with
-    | n when n > 0 && n < 6 ->
-        let item = (List.item (n - 1) x.Guesses)
-        let updated = getNewWordStateDelete item
-        {x with Guesses = listSet x.Guesses updated (n - 1)}
-    | _ -> failwithf "There is no higher purpose"
+        match deletePosition with
+        | n when n > 0 && n < 6 ->
+            deletePosition, { Letters = listSet guessLetters.Letters deletedLetter (deletePosition - 1) }
+        | _ -> position, { Letters = guessLetters.Letters }
+
+    applyLetterUpdate getNewWordStateDelete x
 
 let submitEnter x =
-    let join p q = Map(Seq.concat [ (Map.toSeq p) ; (Map.toSeq q) ])
+    let join p q =
+        Map(
+            Seq.concat [ (Map.toSeq p)
+                         (Map.toSeq q) ]
+        )
+
     let advanceRound = x.Round + 1
+
     let updateRoundStatus ((position, guess): Position * Guess) =
         let guessWord = guess.AsWord()
         let guessMask = guessWord |> getAnswerMask x.Wordle
+
         let letters =
             guessMask.Letters
             |> List.map (fun gl -> defaultArg gl.Letter "", gl.Status)
             |> List.filter (fun (l, s) -> s = Green || s = Grey && not <| x.UsedLetters.ContainsKey l)
             |> Map.ofList
+
         let updatedGuess = (position, guessMask)
-        let updatesState = if guessWord = x.Wordle then Won else Started x
+
+        let updatesState =
+            if guessWord = x.Wordle then
+                Won
+            else
+                Started x
+
         let updatedUsedLetters = letters |> join x.UsedLetters
         updatedGuess, updatesState, updatedUsedLetters
 
     match x.Round with
     | n when n > 0 && n < 6 ->
-        let updatedGuess, updatesState, updatedUsedLetters = updateRoundStatus (List.item (n-1) x.Guesses)
-        {x with 
-            Guesses = listSet x.Guesses updatedGuess (n-1); 
-            UsedLetters = updatedUsedLetters; 
-            Round = advanceRound}
+        let (p, guess) = List.item (n - 1) x.Guesses
+        let allLetters = guess.Letters |> List.forall (fun gl -> gl.Letter <> None)
+        if allLetters then
+            let updatedGuess, updatesState, updatedUsedLetters =
+                updateRoundStatus (List.item (n - 1) x.Guesses)
+
+            { x with
+                Guesses = listSet x.Guesses updatedGuess (n - 1)
+                UsedLetters = updatedUsedLetters
+                Round = advanceRound }
+        else
+            x
+
     | _ -> x
 
 let boxedChar (c, status) =
@@ -214,6 +268,7 @@ let boxedChar (c, status) =
         | Grey -> "bg-slate-600"
         | Green -> "bg-green-600"
         | Yellow -> "bg-yellow-400"
+
     html
         $"""
         <div class="border-solid border-transparent flex border-2 items-center rounded">
@@ -227,8 +282,10 @@ let keyboardChar usedLetters handler (c: string) =
             match Map.tryFind c usedLetters with
             | Some x -> x
             | None -> Black
+
         match letterStatus with
-        | Black | Yellow  -> "bg-gray-300"
+        | Black
+        | Yellow -> "bg-gray-300"
         | Grey -> "bg-slate-600"
         | Green -> "bg-green-600"
 
@@ -247,12 +304,12 @@ let MatchComponent () =
     let _ = LitElement.init (fun cfg -> cfg.useShadowDom <- false)
     let gameState, setGameState = Hook.useState NotStarted
 
-    let writeState state = 
+    let writeState state =
         let letterToDisplayBox =
             let getLetter (_, word) =
-                let letter letter =
-                    let letterString = defaultArg letter.Letter ""
-                    letterString.ToUpper(), letter.Status
+                let letter l =
+                    let letterString = defaultArg l.Letter ""
+                    letterString.ToUpper(), l.Status
 
                 word.Letters |> List.map letter
 
@@ -261,6 +318,7 @@ let MatchComponent () =
         let onKeyClick (c: string) =
             Ev (fun ev ->
                 ev.preventDefault ()
+
                 let submitEntry =
                     match c with
                     | "Ent" -> submitEnter
@@ -270,7 +328,7 @@ let MatchComponent () =
                 state |> submitEntry |> Started |> setGameState)
 
         let keyboardKey = keyboardChar state.UsedLetters onKeyClick
-        
+
         html
             $"""
             <div class="space-y-4">
@@ -308,11 +366,8 @@ let MatchComponent () =
     | NotStarted ->
         let newGame = startNewGame ()
         newGame |> Started |> setGameState
-        newGame |> writeState 
+        newGame |> writeState
 
-    | Started startedState ->
-        writeState startedState
-    | Won ->
-        startNewGame () |> writeState
-    | Lost -> 
-        startNewGame () |> writeState
+    | Started startedState -> writeState startedState
+    | Won -> startNewGame () |> writeState
+    | Lost -> startNewGame () |> writeState
