@@ -68,36 +68,11 @@ type StartedState =
 
 let keyBoard =
     { Top =
-        [ "q"
-          "w"
-          "e"
-          "r"
-          "t"
-          "y"
-          "u"
-          "i"
-          "o"
-          "p" ]
+        [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
       Middle =
-        [ "a"
-          "s"
-          "d"
-          "f"
-          "g"
-          "h"
-          "j"
-          "k"
-          "l" ]
+        [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ;]
       Bottom =
-        [ "Ent"
-          "z"
-          "x"
-          "c"
-          "v"
-          "b"
-          "n"
-          "m"
-          "Del" ] }
+        [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ] }
 
 let startNewGame () =
     let wordles =
@@ -134,7 +109,14 @@ let startNewGame () =
           "TRAIL"
           "ROVER"
           "RIGHT"
-          "WRONG" ]
+          "WRONG"
+          "FUNNY"
+          "AUDIO"
+          "MELEE"
+          "FORCE"
+          "QUEEN"
+          "QUEER"
+          "BASED" ]
 
     let wordle () =
         let today = DateTime.Now
@@ -259,8 +241,7 @@ let submitEnter x =
         let updatedUsedLetters = letters |> join x.UsedLetters
         updatedGuess, updatesState, updatedUsedLetters
 
-    if validRoundNumber x.Round
-       && allValidLetters x.Round x.Guesses then
+    if validRoundNumber x.Round && allValidLetters x.Round x.Guesses then
         let updatedGuess, updatesState, updatedUsedLetters =
             updateRoundStatus (List.item x.Round x.Guesses)
 
@@ -296,7 +277,8 @@ let keyboardChar usedLetters handler (c: string) =
             | None -> Black
 
         match letterStatus with
-        | Black | Yellow -> "bg-gray-300"
+        | Black
+        | Yellow -> "bg-gray-300"
         | Grey -> "bg-slate-600"
         | Green -> "bg-green-600"
 
@@ -340,11 +322,12 @@ let MatchComponent () =
 
         let keyboardKey = keyboardChar state.UsedLetters onKeyClick
         let unusedLets = state.UsedLetters |> Map.toSeq |> Seq.map fst
+
         html
             $"""
             <div class="space-y-4">
                 <div class="flex flex-row justify-center">
-                    "Wordle: " {unusedLets}
+                    Hardle - harder than wordle
                 </div>
                 <div class="flex flex-row justify-center">
                     {List.item 0 state.Guesses |> letterToDisplayBox}
