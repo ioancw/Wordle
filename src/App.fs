@@ -39,17 +39,18 @@ let emptyGuesses =
 
 type Position = int
 
-type StartedState =
-    { Wordle: string
-      Guesses: (Position * Guess) list
-      UsedLetters: Map<string, Status>
-      Round: int }
-
 type GameState =
     | NotStarted
     | Won
     | Lost
-    | Started of StartedState
+    | Started
+
+type StartedState =
+    { Wordle: string
+      Guesses: (Position * Guess) list
+      UsedLetters: Map<string, Status>
+      State: GameState
+      Round: int }
 
 let keyBoard =
     { Top =
@@ -134,6 +135,7 @@ let startNewGame () =
     { Wordle = wordle ()
       Guesses = emptyGuesses
       Round = 1
+      State = NotStarted
       UsedLetters = Map.empty }
 
 // this can be improved quite a bit - need tests though
@@ -238,7 +240,7 @@ let submitEnter x =
             if guessWord = x.Wordle then
                 Won
             else
-                Started x
+                Started
 
         let updatedUsedLetters = letters |> join x.UsedLetters
         updatedGuess, updatesState, updatedUsedLetters
@@ -254,6 +256,7 @@ let submitEnter x =
             { x with
                 Guesses = listSet x.Guesses updatedGuess (n - 1)
                 UsedLetters = updatedUsedLetters
+                State = updatesState
                 Round = advanceRound }
         else
             x
@@ -302,7 +305,7 @@ let keyboardChar usedLetters handler (c: string) =
 [<LitElement("math-app")>]
 let MatchComponent () =
     let _ = LitElement.init (fun cfg -> cfg.useShadowDom <- false)
-    let gameState, setGameState = Hook.useState NotStarted
+    let gameState, setGameState = Hook.useState (startNewGame ())
 
     let writeState state =
         let letterToDisplayBox =
@@ -325,7 +328,7 @@ let MatchComponent () =
                     | "Del" -> submitDelete
                     | _ -> submitLetter c
 
-                state |> submitEntry |> Started |> setGameState)
+                state |> submitEntry |> setGameState)
 
         let keyboardKey = keyboardChar state.UsedLetters onKeyClick
 
@@ -362,12 +365,10 @@ let MatchComponent () =
             </div>
         """
 
-    match gameState with
+    match gameState.State with
     | NotStarted ->
-        let newGame = startNewGame ()
-        newGame |> Started |> setGameState
-        newGame |> writeState
+        gameState |> writeState
 
-    | Started startedState -> writeState startedState
-    | Won -> startNewGame () |> writeState
+    | Started -> writeState gameState
+    | Won -> gameState |> writeState
     | Lost -> startNewGame () |> writeState
