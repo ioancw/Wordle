@@ -3,6 +3,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="words.txt" />
+    <Compile Include="words.fs" />
     <Compile Include="App.fs" />
     <Content Include="index.css" />
   </ItemGroup>

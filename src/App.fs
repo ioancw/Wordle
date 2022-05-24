@@ -2,6 +2,7 @@ module Lit.Wordle
 
 open System
 open Lit
+open Lit.MathGame
 
 Fable.Core.JsInterop.importSideEffects "./index.css"
 
@@ -15,6 +16,7 @@ type Status =
     | Yellow
     | Grey
     | Black
+    | Invalid
 
 type GuessLetter =
     { Letter: string option
@@ -39,12 +41,6 @@ let validLetterPosition n = n >= 0 && n < letters
 
 let validRoundNumber n = n >= 0 && n < rounds
 
-let allValidLetters n guesses =
-    let (_, guess) = List.item n guesses
-
-    guess.Letters
-    |> List.forall (fun gl -> gl.Letter <> None)
-
 let emptyGuesses =
     let emptyGuess =
         0, { Letters = List.init letters (fun _ -> { Letter = None; Status = Black }) }
@@ -66,13 +62,23 @@ type StartedState =
       State: GameState
       Round: int }
 
+let allValidLetters n (guesses: (Position * Guess) list) =
+    let (_, guess) = List.item n guesses
+    let fiveLetterWords =
+        Lit.MathGame.words
+        |> Seq.filter (fun (l: string) -> l.Length = 5)
+        |> Seq.map (fun s -> s.ToUpper())
+        |> Seq.toList
+    let guessWord : string = guess.AsWord()
+
+    guess.Letters
+    |> List.forall (fun gl -> gl.Letter <> None)
+    && List.contains guessWord fiveLetterWords
+
 let keyBoard =
-    { Top =
-        [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
-      Middle =
-        [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ;]
-      Bottom =
-        [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ] }
+    { Top = [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
+      Middle = [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ;]
+      Bottom = [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ] }
 
 let startNewGame () =
     let wordles =
@@ -175,8 +181,7 @@ let getAnswerMask (actual: string) (guess: string) =
         |> List.map (fun (a, m) -> { Letter = Some(string a); Status = m }) }
 
 let listSet list value pos =
-    list
-    |> List.mapi (fun i v -> if i = pos then value else v)
+    list |> List.mapi (fun i v -> if i = pos then value else v)
 
 let applyLetterUpdate updateFunction x =
     match validRoundNumber x.Round with
@@ -200,10 +205,9 @@ let submitLetter input x =
 let submitDelete x =
     let getNewWordStateDelete (position, guessLetters) =
         let deletePosition = position - 1
-        let deletedLetter = { Letter = None; Status = Black }
 
         if validLetterPosition deletePosition then
-            deletePosition, { Letters = listSet guessLetters.Letters deletedLetter deletePosition }
+            deletePosition, { Letters = listSet guessLetters.Letters { Letter = None; Status = Black } deletePosition }
         else
             position, { Letters = guessLetters.Letters }
 
@@ -241,15 +245,21 @@ let submitEnter x =
         let updatedUsedLetters = letters |> join x.UsedLetters
         updatedGuess, updatesState, updatedUsedLetters
 
-    if validRoundNumber x.Round && allValidLetters x.Round x.Guesses then
-        let updatedGuess, updatesState, updatedUsedLetters =
-            updateRoundStatus (List.item x.Round x.Guesses)
+    if validRoundNumber x.Round then
+        if allValidLetters x.Round x.Guesses then
+            let updatedGuess, updatesState, updatedUsedLetters =
+                updateRoundStatus (List.item x.Round x.Guesses)
 
-        { x with
-            Guesses = listSet x.Guesses updatedGuess x.Round
-            UsedLetters = updatedUsedLetters
-            State = updatesState
-            Round = advanceRound }
+            { x with
+                Guesses = listSet x.Guesses updatedGuess x.Round
+                UsedLetters = updatedUsedLetters
+                State = updatesState
+                Round = advanceRound }
+        else
+            let (position, letters) = x.Guesses |> List.item x.Round
+            let updated = {letters with Letters = letters.Letters |> List.map (fun ls -> {ls with Status = Invalid})}
+            { x with
+                Guesses = listSet x.Guesses (position, updated) x.Round }
     else
         x
 
@@ -261,6 +271,7 @@ let boxedChar (c, status) =
         | Grey -> "bg-slate-600"
         | Green -> "bg-green-600"
         | Yellow -> "bg-yellow-400"
+        | Invalid -> "bg-pink-400"
 
     html
         $"""
