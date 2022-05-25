@@ -190,6 +190,8 @@ let submitEnter x =
         let updatesState =
             if guessWord = x.Wordle then
                 Won
+            elif x.Round = (rounds - 1) then
+                Lost
             else
                 Started
 
@@ -198,14 +200,14 @@ let submitEnter x =
 
     if validRoundNumber x.Round then
         if allValidLetters x.Round x.Guesses then
-            let updatedGuess, updatesState, updatedUsedLetters =
+            let updatedGuess, updatedState, updatedUsedLetters =
                 updateRoundStatus (List.item x.Round x.Guesses)
 
             { x with
                 Guesses = listSet x.Guesses updatedGuess x.Round
                 UsedLetters = updatedUsedLetters
-                State = updatesState
-                Round = advanceRound }
+                State = updatedState
+                Round = if updatedState = Won || updatedState = Lost then x.Round else advanceRound }
         else
             let (position, letters) = x.Guesses |> List.item x.Round
             let updated = {letters with Letters = letters.Letters |> List.map (fun ls -> {ls with Status = Invalid})}
@@ -285,11 +287,21 @@ let MatchComponent () =
 
         let keyboardKey = keyboardChar state.UsedLetters onKeyClick
 
+        let outputText =
+            match state.Round, state.State with
+            | 0, Won -> "Jedi Knight you are"
+            | 1, Won -> "Feel the force."
+            | 2, Won -> "A Jedi's strength flows from the force."
+            | 3, Won -> "The greatest teacher, failure is."
+            | 4, Won -> "Fear is the path to the dark side."
+            | _, Lost -> "This is why you must fail"
+            |_ -> "Do or do not, there is no try."
+
         html
             $"""
             <div class="space-y-4">
                 <div class="flex flex-row justify-center font-mono text-3xl ">
-                    Hardle
+                    Mardle
                 </div>
                 <div class="flex flex-row justify-center">
                     {List.item 0 state.Guesses |> letterToDisplayBox}
@@ -315,11 +327,15 @@ let MatchComponent () =
                 <div class="flex flew-row justify-center">
                     {keyBoard.Bottom |> List.map keyboardKey}
                 </div>
+                <div class="flex flex-row justify-center font-mono">
+                    {outputText}
+                </div>
             </div>
         """
 
+    // do we always do the same thing irrespective of state?
     match gameState.State with
     | NotStarted -> gameState |> writeState
-    | Started -> writeState gameState
+    | Started -> gameState |> writeState
     | Won -> gameState |> writeState
-    | Lost -> startNewGame () |> writeState
+    | Lost -> gameState |> writeState //then stats?
