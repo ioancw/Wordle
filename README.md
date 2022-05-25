@@ -1,8 +1,14 @@
-# Lit.MathGame
+# Lit.Wordle
 
-https://aaronmu.github.io/MathGame/
+Forked from https://aaronmu.github.io/MathGame/
 
 [Fable.Lit](https://github.com/fable-compiler/Fable.Lit) app. To start a development server run:
+
+When I know how to, I will rename this to Lit.Wordle, but at the moment that seems to fail, when I publish (npm publish) although it works locally.
+
+TODO
+* Properly structure the code into modules etc.
+* Add tests (especially around the masking function)
 
 ```
 npm install && npm start

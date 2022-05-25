@@ -71,8 +71,7 @@ let allValidLetters n (guesses: (Position * Guess) list) =
         |> Seq.toList
     let guessWord : string = guess.AsWord()
 
-    guess.Letters
-    |> List.forall (fun gl -> gl.Letter <> None)
+    guess.Letters |> List.forall (fun gl -> gl.Letter <> None)
     && List.contains guessWord fiveLetterWords
 
 let keyBoard =
@@ -87,29 +86,57 @@ let startNewGame () =
           "TRIAL"
           "CRIME"
           "BLAZE"
+          "YOUTH"
+          "SHUCK"
+          "XENON"
           "SUCKS"
+          "UNZIP"
           "QUACK"
+          "PAGAN"
           "NIGHT"
+          "BANJO"
+          "ATAXY"
           "GRIME"
           "ARISE"
           "UNLIT"
+          "NEXUS"
+          "MOTTO"
           "BRINE"
+          "YAHOO"
+          "QUARK"
           "WRUNG"
           "POTTY"
           "LANDS"
+          "PIXIE"
+          "MUMMY"
+          "AUNTY"
+          "GIZMO"
           "BRAVE"
           "FERAL"
+          "UNTIE"
           "HORSE"
+          "VOCAL"
           "MAISE"
           "GRAZE"
+          "XYLEM"
           "FRAME"
           "BLUNT"
+          "DUMMY"
+          "QUOTE"
+          "OVERT"
+          "ADAGE"
+          "OILED"
           "GRUNT"
           "BRAIN"
+          "FEIGN"
           "FRONT"
           "BROKE"
           "FLIPS"
+          "UNIFY"
           "MAPLE"
+          "PSALM"
+          "ALIGN"
+          "YUMMY"
           "WHITE"
           "HOVER"
           "TRAIL"
@@ -215,10 +242,7 @@ let submitDelete x =
 
 let submitEnter x =
     let join p q =
-        Map(
-            Seq.concat [ (Map.toSeq p)
-                         (Map.toSeq q) ]
-        )
+        Map(Seq.concat [ (Map.toSeq p); (Map.toSeq q) ])
 
     let advanceRound = x.Round + 1
 
@@ -229,9 +253,7 @@ let submitEnter x =
         let letters =
             guessMask.Letters
             |> List.map (fun gl -> defaultArg gl.Letter "", gl.Status)
-            |> List.filter (fun (l, s) ->
-                s = Green
-                || s = Grey && not <| x.UsedLetters.ContainsKey l)
+            |> List.filter (fun (l, s) -> s = Green || s = Grey || (s = Yellow && not <| x.UsedLetters.ContainsKey l))
             |> Map.ofList
 
         let updatedGuess = (position, guessMask)
@@ -288,10 +310,11 @@ let keyboardChar usedLetters handler (c: string) =
             | None -> Black
 
         match letterStatus with
-        | Black
-        | Yellow -> "bg-gray-300"
+        | Black -> "bg-gray-300"
+        | Yellow -> "bg-yellow-400"
         | Grey -> "bg-slate-600"
         | Green -> "bg-green-600"
+        | Invalid -> "bg-gray-300"
 
     html
         $"""
@@ -303,7 +326,7 @@ let keyboardChar usedLetters handler (c: string) =
         </div>
     """
 
-[<LitElement("math-app")>]
+[<LitElement("wordle-app")>]
 let MatchComponent () =
     let _ = LitElement.init (fun cfg -> cfg.useShadowDom <- false)
     let gameState, setGameState = Hook.useState (startNewGame ())
