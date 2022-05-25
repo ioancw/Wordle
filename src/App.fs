@@ -2,7 +2,7 @@ module Lit.Wordle
 
 open System
 open Lit
-open Lit.MathGame
+open Wordles
 
 Fable.Core.JsInterop.importSideEffects "./index.css"
 
@@ -65,7 +65,7 @@ type StartedState =
 let allValidLetters n (guesses: (Position * Guess) list) =
     let (_, guess) = List.item n guesses
     let fiveLetterWords =
-        Lit.MathGame.words
+        words
         |> Seq.filter (fun (l: string) -> l.Length = 5)
         |> Seq.map (fun s -> s.ToUpper())
         |> Seq.toList
@@ -80,77 +80,6 @@ let keyBoard =
       Bottom = [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ] }
 
 let startNewGame () =
-    let wordles =
-        [ "BORED"
-          "FLAME"
-          "TRIAL"
-          "CRIME"
-          "BLAZE"
-          "YOUTH"
-          "SHUCK"
-          "XENON"
-          "SUCKS"
-          "UNZIP"
-          "QUACK"
-          "PAGAN"
-          "NIGHT"
-          "BANJO"
-          "ATAXY"
-          "GRIME"
-          "ARISE"
-          "UNLIT"
-          "NEXUS"
-          "MOTTO"
-          "BRINE"
-          "YAHOO"
-          "QUARK"
-          "WRUNG"
-          "POTTY"
-          "LANDS"
-          "PIXIE"
-          "MUMMY"
-          "AUNTY"
-          "GIZMO"
-          "BRAVE"
-          "FERAL"
-          "UNTIE"
-          "HORSE"
-          "VOCAL"
-          "MAISE"
-          "GRAZE"
-          "XYLEM"
-          "FRAME"
-          "BLUNT"
-          "DUMMY"
-          "QUOTE"
-          "OVERT"
-          "ADAGE"
-          "OILED"
-          "GRUNT"
-          "BRAIN"
-          "FEIGN"
-          "FRONT"
-          "BROKE"
-          "FLIPS"
-          "UNIFY"
-          "MAPLE"
-          "PSALM"
-          "ALIGN"
-          "YUMMY"
-          "WHITE"
-          "HOVER"
-          "TRAIL"
-          "ROVER"
-          "RIGHT"
-          "WRONG"
-          "FUNNY"
-          "AUDIO"
-          "MELEE"
-          "FORCE"
-          "QUEEN"
-          "QUEER"
-          "BASED" ]
-
     let wordle () =
         let today = DateTime.Now
         let startDate = DateTime(2022, 5, 21)
@@ -355,13 +284,12 @@ let MatchComponent () =
                 state |> submitEntry |> setGameState)
 
         let keyboardKey = keyboardChar state.UsedLetters onKeyClick
-        let unusedLets = state.UsedLetters |> Map.toSeq |> Seq.map fst
 
         html
             $"""
             <div class="space-y-4">
-                <div class="flex flex-row justify-center">
-                    Hardle - harder than wordle
+                <div class="flex flex-row justify-center font-mono text-3xl ">
+                    Hardle
                 </div>
                 <div class="flex flex-row justify-center">
                     {List.item 0 state.Guesses |> letterToDisplayBox}
