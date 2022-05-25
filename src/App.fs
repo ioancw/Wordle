@@ -3,6 +3,9 @@ module Lit.Wordle
 open System
 open Lit
 open Wordles
+open Fable.Import
+open Types
+open Fable.Core
 
 Fable.Core.JsInterop.importSideEffects "./index.css"
 
@@ -21,6 +24,23 @@ type Status =
 type GuessLetter =
     { Letter: string option
       Status: Status }
+
+type LocalStorageGameState =
+    {
+        Guesses: string []
+        Solution: string
+    }
+
+// persisted game state stuff.
+let gameStateKey = "gameState"
+
+let saveGameStateLocalStorage gameState =
+    Browser.WebStorage.localStorage.setItem(gameStateKey, JS.JSON.stringify {Guesses = [| "AROSE"; "ARISE"|]; Solution = "DROVE"})
+
+let loadGameStateLocalStorage () =
+    let item = Browser.WebStorage.localStorage.getItem(gameStateKey)
+    let unpackedState = JS.JSON.parse item
+    unpackedState
 
 type Guess =
     { Letters: GuessLetter list }
@@ -90,6 +110,9 @@ let startNewGame () =
         let index = differenceDays % wordles.Length
         wordles.[index]
 
+    //before we create the main game state, we want to load any persisted state from the local storage
+    //and use it to populate the main game state, so we know where we left off.
+
     { Wordle = wordle ()
       Guesses = emptyGuesses
       Round = 0
@@ -140,19 +163,17 @@ let listSet list value pos =
     list |> List.mapi (fun i v -> if i = pos then value else v)
 
 let applyLetterUpdate updateFunction x =
-    match validRoundNumber x.Round with
-    | true ->
+    if validRoundNumber x.Round then
         let item = List.item x.Round x.Guesses
         let updated = updateFunction item
         { x with Guesses = listSet x.Guesses updated x.Round }
-    | false -> failwithf "There is no higher purpose"
+    else x
 
 let submitLetter input x =
     let getNewWordStateAdd newLetter (position, guessLetters) =
-        if validLetterPosition position then
-            position + 1, { Letters = listSet guessLetters.Letters newLetter position }
-        else
-            position, { Letters = guessLetters.Letters }
+        if validLetterPosition position
+        then position + 1, { Letters = listSet guessLetters.Letters newLetter position }
+        else position, { Letters = guessLetters.Letters }
 
     let addLetterToWord = getNewWordStateAdd { Letter = Some input; Status = Black }
 
@@ -162,18 +183,15 @@ let submitDelete x =
     let getNewWordStateDelete (position, guessLetters) =
         let deletePosition = position - 1
 
-        if validLetterPosition deletePosition then
-            deletePosition, { Letters = listSet guessLetters.Letters { Letter = None; Status = Black } deletePosition }
-        else
-            position, { Letters = guessLetters.Letters }
+        if validLetterPosition deletePosition
+        then deletePosition, { Letters = listSet guessLetters.Letters { Letter = None; Status = Black } deletePosition }
+        else position, { Letters = guessLetters.Letters }
 
     applyLetterUpdate getNewWordStateDelete x
 
 let submitEnter x =
     let join p q =
         Map(Seq.concat [ (Map.toSeq p); (Map.toSeq q) ])
-
-    let advanceRound = x.Round + 1
 
     let updateRoundStatus ((position, guess): Position * Guess) =
         let guessWord = guess.AsWord()
@@ -188,12 +206,9 @@ let submitEnter x =
         let updatedGuess = (position, guessMask)
 
         let updatesState =
-            if guessWord = x.Wordle then
-                Won
-            elif x.Round = (rounds - 1) then
-                Lost
-            else
-                Started
+            if guessWord = x.Wordle then Won
+            elif x.Round = (rounds - 1) then Lost
+            else Started
 
         let updatedUsedLetters = letters |> join x.UsedLetters
         updatedGuess, updatesState, updatedUsedLetters
@@ -207,7 +222,7 @@ let submitEnter x =
                 Guesses = listSet x.Guesses updatedGuess x.Round
                 UsedLetters = updatedUsedLetters
                 State = updatedState
-                Round = if updatedState = Won || updatedState = Lost then x.Round else advanceRound }
+                Round = if updatedState = Won || updatedState = Lost then x.Round else x.Round + 1 }
         else
             let (position, letters) = x.Guesses |> List.item x.Round
             let updated = {letters with Letters = letters.Letters |> List.map (fun ls -> {ls with Status = Invalid})}
@@ -252,7 +267,8 @@ let keyboardChar usedLetters handler (c: string) =
         <div class="w-11 px-1 mb-2">
             <button
                 @click={handler c}
-                class="block w-full h-12 rounded {colour} items-center justify-center uppercase"
+
+                  class="flex w-full h-12 rounded {colour} items-center justify-center uppercase"
             >{c}</button>
         </div>
     """
@@ -299,36 +315,38 @@ let MatchComponent () =
 
         html
             $"""
-            <div class="space-y-4">
-                <div class="flex flex-row justify-center font-mono text-3xl ">
-                    Mardle
+            <div class="space-y-3">
+                <div class="flex justify-center mb-1 font-mono text-3xl ">
+                    Hardle
                 </div>
-                <div class="flex flex-row justify-center">
+                <div class="flex justify-center mb-1">
                     {List.item 0 state.Guesses |> letterToDisplayBox}
                 </div>
-                <div class="flex flex-row justify-center">
+                <div class="flex justify-center mb-1">
                     {List.item 1 state.Guesses |> letterToDisplayBox}
                 </div>
-                <div class="flex flex-row justify-center">
+                <div class="flex justify-center mb-1">
                     {List.item 2 state.Guesses |> letterToDisplayBox}
                 </div>
-                <div class="flex flex-row justify-center">
+                <div class="flex justify-center mb-1">
                     {List.item 3 state.Guesses |> letterToDisplayBox}
                 </div>
-                <div class="flex flex-row justify-center">
+                <div class="flex justify-center mb-1">
                     {List.item 4 state.Guesses |> letterToDisplayBox}
                 </div>
-                <div class="flex flew-row justify-center">
-                    {keyBoard.Top |> List.map keyboardKey}
-                </div>
-                <div class="flex flew-row justify-center mb-1">
-                    {keyBoard.Middle |> List.map keyboardKey}
-                </div>
-                <div class="flex flew-row justify-center">
-                    {keyBoard.Bottom |> List.map keyboardKey}
-                </div>
-                <div class="flex flex-row justify-center font-mono">
-                    {outputText}
+                <div class=space-y-3>
+                    <div class="flex justify-center mb-1">
+                        {keyBoard.Top |> List.map keyboardKey}
+                    </div>
+                    <div class="flex justify-center mb-1">
+                        {keyBoard.Middle |> List.map keyboardKey}
+                    </div>
+                    <div class="flex justify-center mb-1">
+                        {keyBoard.Bottom |> List.map keyboardKey}
+                    </div>
+                    <div class="flex justify-center font-mono">
+                        {outputText}
+                    </div>
                 </div>
             </div>
         """
