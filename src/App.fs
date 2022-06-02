@@ -6,7 +6,7 @@ open Wordles
 open Fable.Import
 open Fable.Core
 
-Fable.Core.JsInterop.importSideEffects "./index.css"
+JsInterop.importSideEffects "./index.css"
 
 type KeyBoard =
     { Top: string list
@@ -25,12 +25,10 @@ type GuessLetter =
       Status: Status }
 
 type LocalStorageGameState =
-    {
-        Guesses: (int * (string * string) [])[]
-        Solution: string
-        Round: int
-        State: string
-    }
+    { Guesses: (int * (string * string) []) []
+      Solution: string
+      Round: int
+      State: string }
 
 type Guess =
     { Letters: GuessLetter list }
@@ -65,7 +63,8 @@ let letters = 5
 let validLetterPosition n = n >= 0 && n < letters
 
 let validRound state =
-    if state.State = Lost || state.State = Won then false
+    if state.State = Lost || state.State = Won 
+    then false
     else (state.Round >= 0 && state.Round < rounds)
 
 let emptyGuesses =
@@ -76,35 +75,38 @@ let emptyGuesses =
 
 let allValidLetters n (guesses: (Position * Guess) list) =
     let (_, guess) = List.item n guesses
+
     let fiveLetterWords =
         words
         |> Seq.filter (fun (l: string) -> l.Length = 5)
         |> Seq.map (fun s -> s.ToUpper())
         |> Seq.toList
-    let guessWord : string = guess.AsWord()
 
-    guess.Letters |> List.forall (fun gl -> gl.Letter <> None)
+    let guessWord: string = guess.AsWord()
+
+    guess.Letters
+    |> List.forall (fun gl -> gl.Letter <> None)
     && List.contains guessWord fiveLetterWords
 
 let keyBoard =
     { Top = [ "q"; "w"; "e"; "r"; "t"; "y"; "u"; "i"; "o"; "p" ]
-      Middle = [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ;]
+      Middle = [ "a"; "s"; "d"; "f"; "g"; "h"; "j"; "k"; "l" ]
       Bottom = [ "Ent"; "z"; "x"; "c"; "v"; "b"; "n"; "m"; "Del" ] }
 
 // persisted game state stuff.
 let gameStateKey = "gameState"
 
 let saveGameStateLocalStorage (state: State) =
-    let statusToString status = 
-        match status with 
+    let statusToString status =
+        match status with
         | Yellow -> "Yellow"
         | Grey -> "Grey"
         | Black -> "Black"
         | Green -> "Green"
         | Invalid -> "Invalid"
 
-    let stateToString state = 
-        match state with 
+    let stateToString state =
+        match state with
         | NotStarted -> "Not Started"
         | Won -> "Won"
         | Lost -> "Lost"
@@ -120,13 +122,38 @@ let saveGameStateLocalStorage (state: State) =
         |> List.toArray
 
     // create a local state which doesn't use record types as they don't round trip.
-    Browser.WebStorage.localStorage.setItem(gameStateKey, JS.JSON.stringify {Guesses = guessedWords; Solution = state.Wordle; Round = state.Round; State  = stateToString state.State})
+    Browser.WebStorage.localStorage.setItem (
+        gameStateKey,
+        JS.JSON.stringify
+            { Guesses = guessedWords
+              Solution = state.Wordle
+              Round = state.Round
+              State = stateToString state.State }
+    )
 
 let loadGameStateLocalStorage () =
     Console.WriteLine("Now reading from local storoage")
-    Browser.WebStorage.localStorage.getItem(gameStateKey)
-    |> JS.JSON.parse :?> LocalStorageGameState
+    let localState = Browser.WebStorage.localStorage.getItem (gameStateKey)
 
+    match localState with
+    | null -> None
+    | _ -> Some(localState |> JS.JSON.parse :?> LocalStorageGameState)
+
+let join p q =
+    Map(
+        Seq.concat [ (Map.toSeq p)
+                     (Map.toSeq q) ]
+    )
+
+let getUsedLetters letterGuesses (state: Map<string, Status>) =
+    letterGuesses
+    |> List.map (fun gl -> defaultArg gl.Letter "", gl.Status)
+    |> List.filter (fun (l, s) ->
+        s = Green
+        || (s = Grey && not <| state.ContainsKey l)
+        || (s = Yellow && not <| state.ContainsKey l))
+    |> Map.ofList
+    |> join state
 
 let startNewGame =
     Console.WriteLine("Starting a new game")
@@ -144,26 +171,32 @@ let startNewGame =
         wordles.[index]
 
     let todaysWordle = wordle ()
-    
-    let localState = 
-        match loadedStorage.State with 
+
+    let localState (stored: LocalStorageGameState) =
+        match stored.State with
         | "Not Started" -> NotStarted
         | "Won" -> Won
-        | "Lost" -> Lost 
+        | "Lost" -> Lost
         | "Started" -> Started
 
-
-
-
-    if todaysWordle = loadedStorage.Solution && localState <> NotStarted then
+    match loadedStorage with
+    | Some stored when
+        todaysWordle = stored.Solution
+        && localState stored <> NotStarted
+        ->
         let localGuesses =
-            loadedStorage.Guesses
+            stored.Guesses
             |> Array.map (fun (position, letters) ->
                 position,
-                {Letters =
-                    letters |> Array.toList
+                { Letters =
+                    letters
+                    |> Array.toList
                     |> List.map (fun (guessLetter, guessStatus) ->
-                        let letterOption = if guessLetter = "" then None else Some guessLetter
+                        let letterOption =
+                            if guessLetter = "" 
+                            then None
+                            else Some guessLetter
+
                         let status =
                             match guessStatus with
                             | "Yellow" -> Yellow
@@ -171,34 +204,28 @@ let startNewGame =
                             | "Black" -> Black
                             | "Green" -> Green
                             | _ -> Invalid
-                        {Letter = letterOption; Status = status})
-                })
+
+                        { Letter = letterOption
+                          Status = status }) })
             |> Array.toList
 
-        // for (pos, guess) in localGuesses do
-            
-        //     let letters =
-        //         guess.Letters
-        //         |> List.map (fun gl -> defaultArg gl.Letter "", gl.Status)
-        //         |> List.filter (fun (l, s) -> s = Green ||
-        //                 (s = Grey && not <| state.UsedLetters.ContainsKey l) ||
-        //                 (s = Yellow && not <| state.UsedLetters.ContainsKey l))
-        //         |> Map.ofList
-        //     letters
+        //fold local guesses in order to colour the keyboard.
+        let storageUsedLetters =
+            localGuesses
+            |> List.map snd
+            |> List.fold (fun state guess -> getUsedLetters guess.Letters state) Map.empty
 
         { Wordle = todaysWordle
           Guesses = localGuesses
-          Round = loadedStorage.Round
-          State = localState
-          UsedLetters = Map.empty
-        }
-    else
+          Round = stored.Round
+          State = localState stored
+          UsedLetters = storageUsedLetters }
+    | _ ->
         { Wordle = todaysWordle
           Guesses = guesses
           Round = 0
           State = NotStarted
-          UsedLetters = Map.empty
-        }
+          UsedLetters = Map.empty }
 
 // this can be improved quite a bit - need tests though
 let getAnswerMask (actual: string) (guess: string) =
@@ -241,20 +268,23 @@ let getAnswerMask (actual: string) (guess: string) =
         |> List.map (fun (a, m) -> { Letter = Some(string a); Status = m }) }
 
 let listSet list value pos =
-    list |> List.mapi (fun i v -> if i = pos then value else v)
+    list
+    |> List.mapi (fun i v -> if i = pos then value else v)
 
 let applyLetterUpdate updateFunction state =
     if validRound state then
         let item = List.item state.Round state.Guesses
         let updated = updateFunction item
         { state with Guesses = listSet state.Guesses updated state.Round }
-    else state
+    else
+        state
 
 let submitLetter input state =
     let getNewWordStateAdd newLetter (position, guessLetters) =
-        if validLetterPosition position
-        then position + 1, { Letters = listSet guessLetters.Letters newLetter position }
-        else position, { Letters = guessLetters.Letters }
+        if validLetterPosition position then
+            position + 1, { Letters = listSet guessLetters.Letters newLetter position }
+        else
+            position, { Letters = guessLetters.Letters }
 
     let addLetterToWord = getNewWordStateAdd { Letter = Some input; Status = Black }
 
@@ -264,36 +294,30 @@ let submitDelete state =
     let getNewWordStateDelete (position, guessLetters) =
         let deletePosition = position - 1
 
-        if validLetterPosition deletePosition
-        then deletePosition, { Letters = listSet guessLetters.Letters { Letter = None; Status = Black } deletePosition }
-        else position, { Letters = guessLetters.Letters }
+        if validLetterPosition deletePosition then
+            deletePosition, { Letters = listSet guessLetters.Letters { Letter = None; Status = Black } deletePosition }
+        else
+            position, { Letters = guessLetters.Letters }
 
     applyLetterUpdate getNewWordStateDelete state
 
 let submitEnter state =
-    let join p q =
-        Map(Seq.concat [ (Map.toSeq p); (Map.toSeq q) ])
-
     let updateRoundStatus ((position, guess): Position * Guess) =
         let guessWord = guess.AsWord()
         let guessMask = guessWord |> getAnswerMask state.Wordle
 
-        let letters =
-            guessMask.Letters
-            |> List.map (fun gl -> defaultArg gl.Letter "", gl.Status)
-            |> List.filter (fun (l, s) -> s = Green ||
-                 (s = Grey && not <| state.UsedLetters.ContainsKey l) ||
-                 (s = Yellow && not <| state.UsedLetters.ContainsKey l))
-            |> Map.ofList
+        let updatedUsedLetters = getUsedLetters guessMask.Letters state.UsedLetters
 
         let updatedGuess = (position, guessMask)
 
         let updatedState =
-            if guessWord = state.Wordle then Won
-            elif state.Round = (rounds - 1) then Lost
-            else Started
+            if guessWord = state.Wordle then
+                Won
+            elif state.Round = (rounds - 1) then
+                Lost
+            else
+                Started
 
-        let updatedUsedLetters = letters |> join state.UsedLetters
         updatedGuess, updatedState, updatedUsedLetters
 
     if validRound state then
@@ -305,12 +329,22 @@ let submitEnter state =
                 Guesses = listSet state.Guesses updatedGuess state.Round
                 UsedLetters = updatedUsedLetters
                 State = updatedState
-                Round = if updatedState = Won || updatedState = Lost then state.Round else state.Round + 1 }
+                Round =
+                    if updatedState = Won || updatedState = Lost 
+                    then state.Round
+                    else state.Round + 1 }
         else
             let (position, letters) = state.Guesses |> List.item state.Round
-            let updated = {letters with Letters = letters.Letters |> List.map (fun ls -> {ls with Status = Invalid})}
+
+            let updated =
+                { letters with
+                    Letters =
+                        letters.Letters
+                        |> List.map (fun ls -> { ls with Status = Invalid }) }
+
             { state with Guesses = listSet state.Guesses (position, updated) state.Round }
-    else state
+    else
+        state
 
 let boxedChar (c, status) =
     // https://tailwindcss.com/docs/border-style
@@ -361,9 +395,8 @@ let MatchComponent () =
     let gameState, setGameState = Hook.useState startedGame
 
     let writeState state =
-        Console.WriteLine("About to write the state")
-            // or persist game state here after every loop of the game?
         saveGameStateLocalStorage gameState |> ignore
+
         let letterToDisplayBox =
             let getLetter (_, word) =
                 let letter l =
@@ -385,8 +418,7 @@ let MatchComponent () =
                     | _ -> submitLetter c
 
                 state |> submitEntry |> setGameState
-                // would we persist the game state here?
-                )
+            )
 
         let keyboardKey = keyboardChar state.UsedLetters onKeyClick
 
@@ -398,7 +430,7 @@ let MatchComponent () =
             | 3, Won -> "The greatest teacher, failure is."
             | 4, Won -> "Fear is the path to the dark side."
             | _, Lost -> "This is why you must fail"
-            |_ -> "Do or do not, there is no try."
+            | _ -> "Do or do not, there is no try."
 
         html
             $"""
