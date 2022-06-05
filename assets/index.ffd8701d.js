@@ -7,7 +7,7 @@ import{y as Gr,n as Rr}from"./vendor.299b0ab0.js";const Ar=function(){const s=do
     `)}function ko(e,s,r){let t,a;const o=Ya(r.toLocaleUpperCase(),e);switch(a=o==null?new _(3):o,a.tag){case 1:{t="bg-yellow-500";break}case 2:{t="bg-slate-600";break}case 0:{t="bg-green-700";break}case 4:{t="bg-gray-400";break}default:t="bg-gray-400"}return bs(us`
     <button
     @click=${s(r)}
-    class="flex items-center justify-center rounded mx-1 text-xs font-bold px-3.5 py-4 ${t} uppercase"
+    class="flex items-center justify-center rounded mx-0.5 text-xs font-bold px-3.5 py-4 ${t} uppercase"
     >${r}</button>
     `)}new oo("wordle-app").Decorate(function(){this.init(a=>(a.useShadowDom=!1,Promise.resolve(void 0)));const e=Qa(this).useState(()=>po),s=e[0],r=a=>{co(s);const o=f=>C(d=>wo(d[0],d[1]),C(d=>[We(d.Letter,"").toLocaleUpperCase(),d.Status],f[1].Letters)),n=f=>ko(a.UsedLetters,d=>c=>{c.preventDefault(),e[1]((d==="Ent"?m=>bo(m):d==="Del"?m=>go(m):m=>yo(d,m))(a))},f);let l;const i=[a.Round,a.State];let u;switch(i[0]===0?i[1].tag===1?u=0:i[1].tag===2?u=5:u=6:i[0]===1?i[1].tag===1?u=1:i[1].tag===2?u=5:u=6:i[0]===2?i[1].tag===1?u=2:i[1].tag===2?u=5:u=6:i[0]===3?i[1].tag===1?u=3:i[1].tag===2?u=5:u=6:i[0]===4&&i[1].tag===1?u=4:i[1].tag===2?u=5:u=6,u){case 0:{l="Jedi Knight you are";break}case 1:{l="Feel the force.";break}case 2:{l="A Jedi's strength flows from the force.";break}case 3:{l="The greatest teacher, failure is.";break}case 4:{l="Fear is the path to the dark side.";break}case 5:{l="This is why you must fail";break}case 6:{l="Do or do not, there is no try.";break}}return bs(us`
         <div class="min-h-screen space-y-3 bg-black">
